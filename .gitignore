@@ -3,11 +3,9 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-.Python
 *.egg-info/
 dist/
 build/
-*.egg
 
 # Virtual environments
 venv/
@@ -15,13 +13,12 @@ venv/
 env/
 .env
 
-# Flask / SQLite
-civicreport.db
-instance/
+# SQLite database (regenerate with seed_data.py)
+*.db
 
-# Uploads (user-submitted photos — not for VCS)
-static/uploads/*
-!static/uploads/.gitkeep
+# Uploaded citizen photos — not for VCS
+civicreport/static/uploads/*
+!civicreport/static/uploads/.gitkeep
 
 # OS
 .DS_Store
