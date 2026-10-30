@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CivicReport</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="brand"><span class="brand-icon">🏛</span><span class="brand-name">CivicReport</span></a>
+    <nav class="header-nav">
+      <a href="/report">Report</a>
+      <a href="/track">Track</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </div>
+</header>
+<main class="page-container">
+  <div class="form-card">
+    <div class="form-card-header">
+      <h1 class="form-title">Welcome to CivicReport</h1>
+      <p class="form-subtitle">Report civic issues in your city. Fast, trackable, AI-powered.</p>
+    </div>
+    <div style="padding:1.5rem;display:flex;flex-direction:column;gap:1rem;">
+      <a href="/report" class="btn btn-primary">📝 Report an Issue</a>
+      <a href="/track"  class="btn btn-outline">🔍 Track a Report</a>
+      <a href="/admin"  class="btn btn-outline">🛠 Admin Dashboard</a>
+    </div>
+  </div>
+</main>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

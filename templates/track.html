@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Report – CivicReport</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="brand">
+      <span class="brand-icon">🏛</span>
+      <span class="brand-name">CivicReport</span>
+    </a>
+    <nav class="header-nav">
+      <a href="/">Home</a>
+      <a href="/report">Report</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── Main ────────────────────────────────────────────────────── -->
+<main class="page-container">
+
+  <!-- ── Search card ── -->
+  <div class="form-card" id="searchCard">
+    <div class="form-card-header">
+      <h1 class="form-title">Track Your Report</h1>
+      <p class="form-subtitle">Enter your tracking ID to see live status updates.</p>
+    </div>
+    <div class="track-search-body">
+      <div class="field">
+        <label for="trackInput" class="field-label">Tracking ID</label>
+        <div class="track-input-row">
+          <input type="text" id="trackInput" class="field-input"
+                 placeholder="e.g. CIV-1007" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false">
+          <button id="trackBtn" class="btn btn-primary">Search</button>
+        </div>
+      </div>
+      <div id="searchError" class="alert alert-error" hidden></div>
+    </div>
+  </div>
+
+  <!-- ── Report detail (hidden until loaded) ── -->
+  <div id="reportDetail" hidden>
+
+    <!-- Status strip -->
+    <div id="statusStrip" class="status-strip"></div>
+
+    <!-- Detail card -->
+    <div class="form-card detail-card">
+
+      <!-- Card header: title + refresh indicator -->
+      <div class="detail-header">
+        <div class="detail-title-group">
+          <span id="detailTrackingId" class="detail-tracking-id"></span>
+          <h2 id="detailTitle" class="detail-title"></h2>
+        </div>
+        <div class="refresh-badge" id="refreshBadge" title="Auto-refreshes every 10 s">
+          <span class="refresh-dot" id="refreshDot"></span>
+          <span id="refreshLabel">Live</span>
+        </div>
+      </div>
+
+      <!-- ── Progress stepper ── -->
+      <section class="stepper-section">
+        <ol class="stepper" id="stepper" aria-label="Report progress">
+          <!-- Steps injected by JS -->
+        </ol>
+      </section>
+
+      <!-- ── Meta grid ── -->
+      <section class="meta-section">
+        <dl class="meta-grid">
+          <dt>Category</dt>   <dd id="metaCategory"></dd>
+          <dt>Priority</dt>   <dd><span id="metaPriority" class="priority-badge"></span></dd>
+          <dt>Summary</dt>    <dd id="metaSummary"></dd>
+          <dt>Assigned to</dt><dd id="metaAssigned"></dd>
+          <dt>Location</dt>   <dd id="metaAddress"></dd>
+          <dt>Submitted</dt>  <dd id="metaCreated"></dd>
+          <dt>Last updated</dt><dd id="metaUpdated"></dd>
+        </dl>
+
+        <!-- Priority factors (collapsible) -->
+        <details class="factors-details" id="factorsDetails" hidden>
+          <summary class="factors-summary">Priority factors</summary>
+          <ul id="metaFactors" class="factors-list factors-compact"></ul>
+        </details>
+
+        <!-- Duplicate notice -->
+        <div id="dupNotice" class="alert alert-warn" hidden></div>
+      </section>
+
+      <!-- ── Status timeline ── -->
+      <section class="timeline-section">
+        <h3 class="section-heading">Status history</h3>
+        <ol id="timeline" class="timeline" aria-label="Status timeline">
+          <!-- Items injected by JS -->
+        </ol>
+      </section>
+
+    </div><!-- /detail-card -->
+
+    <!-- Search another -->
+    <div class="track-again-row">
+      <button id="searchAgainBtn" class="btn btn-outline btn-sm">🔍 Search another ID</button>
+    </div>
+
+  </div><!-- /reportDetail -->
+
+  <!-- ── Not found panel ── -->
+  <div id="notFoundPanel" hidden class="form-card not-found-card">
+    <div class="not-found-body">
+      <span class="not-found-icon">🔍</span>
+      <p class="not-found-title">Report not found</p>
+      <p class="not-found-sub" id="notFoundMsg"></p>
+      <button id="notFoundBackBtn" class="btn btn-outline btn-sm">Try another ID</button>
+    </div>
+  </div>
+
+</main><!-- /page-container -->
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

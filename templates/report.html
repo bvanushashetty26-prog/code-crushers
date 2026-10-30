@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report an Issue – CivicReport</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<!-- ─── Header ─────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="brand">
+      <span class="brand-icon">🏛</span>
+      <span class="brand-name">CivicReport</span>
+    </a>
+    <nav class="header-nav">
+      <a href="/">Home</a>
+      <a href="/track">Track</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ─── Main ────────────────────────────────────────────────────── -->
+<main class="page-container">
+  <div class="form-card">
+
+    <!-- Title -->
+    <div class="form-card-header">
+      <h1 class="form-title">Report a Civic Issue</h1>
+      <p class="form-subtitle">Describe the problem. We'll categorise and prioritise it automatically.</p>
+    </div>
+
+    <!-- ── Validation banner (hidden) ── -->
+    <div id="validationBanner" class="alert alert-error" hidden>
+      <span id="validationMsg"></span>
+    </div>
+
+    <!-- ── Form ── -->
+    <form id="reportForm" novalidate>
+
+      <!-- Description -->
+      <div class="field">
+        <label for="description" class="field-label">
+          What's the issue? <span class="required">*</span>
+        </label>
+        <textarea id="description" name="description" rows="4"
+          placeholder="e.g. There's a large pothole on MG Road near Sector 7 that has damaged several vehicles…"
+          class="field-input" required></textarea>
+        <span class="field-hint">Be specific — location, severity, how long it's been there.</span>
+      </div>
+
+      <!-- Category -->
+      <div class="field">
+        <label for="category" class="field-label">Category</label>
+        <div class="select-wrap">
+          <select id="category" name="category" class="field-input">
+            <option value="">🤖 Auto-detect</option>
+            <option value="Waterlogging">💧 Waterlogging</option>
+            <option value="Road Damage">🛣 Road Damage</option>
+            <option value="Garbage">🗑 Garbage</option>
+            <option value="Streetlight">💡 Streetlight</option>
+            <option value="Drainage">🚰 Drainage</option>
+            <option value="Water Supply">🔧 Water Supply</option>
+          </select>
+        </div>
+        <span class="field-hint">Leave on Auto-detect to let AI classify your report.</span>
+      </div>
+
+      <!-- Image upload -->
+      <div class="field">
+        <label class="field-label">Photo <span class="optional">(optional)</span></label>
+        <label for="imageInput" class="upload-zone" id="uploadZone">
+          <div id="uploadPrompt" class="upload-prompt">
+            <span class="upload-icon">📷</span>
+            <span>Tap to add a photo</span>
+          </div>
+          <img id="imagePreview" class="image-preview" hidden alt="Preview">
+          <input type="file" id="imageInput" name="image"
+                 accept="image/png,image/jpeg,image/gif,image/webp"
+                 class="sr-only">
+        </label>
+        <button type="button" id="removeImage" class="link-btn" hidden>Remove photo</button>
+      </div>
+
+      <!-- Location section -->
+      <div class="field">
+        <label class="field-label">Location</label>
+
+        <!-- Map -->
+        <div id="map" class="leaflet-map" aria-label="Click to drop a pin"></div>
+        <p class="field-hint map-hint">
+          <strong>Click on the map</strong> to drop a pin — or use the button below.
+        </p>
+
+        <!-- Use my location -->
+        <button type="button" id="geoBtn" class="btn btn-outline btn-sm">
+          📍 Use my location
+        </button>
+
+        <!-- Coordinate readout -->
+        <div id="coordReadout" class="coord-readout" hidden>
+          <span class="coord-badge">
+            <span id="latDisplay"></span>,
+            <span id="lngDisplay"></span>
+          </span>
+          <button type="button" id="clearPin" class="link-btn">Clear pin</button>
+        </div>
+
+        <!-- Hidden fields -->
+        <input type="hidden" id="latitude"  name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+
+        <!-- Manual address -->
+        <div class="field field-inline">
+          <label for="address" class="field-label">Address / Landmark</label>
+          <input type="text" id="address" name="address"
+            placeholder="e.g. MG Road, near Sector 7 Chowk"
+            class="field-input">
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="form-actions">
+        <button type="submit" id="submitBtn" class="btn btn-primary btn-full">
+          <span id="submitLabel">Submit Report</span>
+          <span id="submitSpinner" class="spinner" hidden></span>
+        </button>
+      </div>
+
+    </form><!-- /form -->
+
+    <!-- ── Result card (hidden until submit succeeds) ── -->
+    <div id="resultCard" class="result-card" hidden>
+
+      <!-- Success header -->
+      <div class="result-header">
+        <span class="result-icon">✅</span>
+        <div>
+          <p class="result-label">Report submitted</p>
+          <p class="result-subtext">Your tracking ID:</p>
+        </div>
+      </div>
+
+      <!-- Tracking ID -->
+      <div class="tracking-id-row">
+        <span id="resultTrackingId" class="tracking-id"></span>
+        <button type="button" id="copyBtn" class="btn btn-outline btn-sm" title="Copy to clipboard">
+          📋 Copy
+        </button>
+      </div>
+
+      <!-- Duplicate warning -->
+      <div id="duplicateWarning" class="alert alert-warn" hidden>
+        <strong>Possible duplicate:</strong>
+        <span id="duplicateMsg"></span>
+      </div>
+
+      <!-- Details grid -->
+      <dl class="result-grid">
+        <dt>Category</dt>
+        <dd id="resultCategory"></dd>
+
+        <dt>Summary</dt>
+        <dd id="resultSummary"></dd>
+
+        <dt>Priority</dt>
+        <dd><span id="resultPriorityBadge" class="priority-badge"></span></dd>
+      </dl>
+
+      <!-- Priority factors -->
+      <div class="factors-section">
+        <p class="factors-title">Priority factors</p>
+        <ul id="factorsList" class="factors-list"></ul>
+      </div>
+
+      <!-- Actions -->
+      <div class="result-actions">
+        <a id="trackLink" href="#" class="btn btn-primary btn-sm">🔍 Track this report</a>
+        <button type="button" id="newReportBtn" class="btn btn-outline btn-sm">+ New report</button>
+      </div>
+
+    </div><!-- /resultCard -->
+
+  </div><!-- /form-card -->
+</main>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>
