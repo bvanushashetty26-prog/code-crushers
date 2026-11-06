@@ -303,19 +303,20 @@ def _report_text(r: dict) -> str:
 def find_duplicates(
     new_report: dict,
     existing_reports: list[dict],
-    text_threshold: float = 0.40,
-    distance_threshold_m: float = 150.0,
+    text_threshold: float = 0.35,   # lowered: catch near-duplicates with slightly different wording
+    distance_threshold_m: float = 50.0,  # tightened from 150 m → ~50 m city-block radius
 ) -> dict | None:
     """
     Find the best matching existing report for *new_report*.
 
-    Scoring
-    -------
-    combined_score = 0.6 * text_similarity
-                   + 0.3 * (1 if same_category else 0)
-                   + 0.1 * proximity_score
+    Scoring (updated weights)
+    -------------------------
+    combined_score = 0.50 * text_similarity
+                   + 0.30 * (1 if same_category else 0)
+                   + 0.20 * proximity_score          ← boosted from 0.10
 
-    where proximity_score = max(0, 1 - dist_m / distance_threshold_m)
+    proximity_score = max(0, 1 - dist_m / distance_threshold_m)
+    A report within 50 m of the same category gets a full 0.20 proximity bonus.
 
     Only reports with text_similarity ≥ text_threshold are considered.
 
@@ -381,9 +382,11 @@ def find_duplicates(
         r_lat, r_lon = r.get("latitude"), r.get("longitude")
         if None not in (new_lat, new_lon, r_lat, r_lon):
             dist_m = _haversine_m(new_lat, new_lon, r_lat, r_lon)
-            prox_score = max(0.0, 1.0 - dist_m / distance_threshold_m) * 0.1
+            # proximity accounts for 20 % of the score (was 10 %)
+            prox_score = max(0.0, 1.0 - dist_m / distance_threshold_m) * 0.20
 
-        combined = 0.6 * text_sim + cat_bonus + prox_score
+        # Updated weights: text 50 %, category 30 %, proximity 20 %
+        combined = 0.50 * text_sim + cat_bonus + prox_score
         if combined > best_score:
             best_score = combined
             best_idx = i

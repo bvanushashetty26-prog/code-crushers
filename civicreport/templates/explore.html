@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore Issues – CivicReport</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="brand">
+      <span class="brand-icon">🏛</span>
+      <span class="brand-name">CivicReport</span>
+    </a>
+    <nav class="header-nav">
+      <a href="/explore" data-i18n="nav.explore">Explore</a>
+      <a href="/report"  data-i18n="nav.report">Report</a>
+      <a href="/track"   data-i18n="nav.track">Track</a>
+      <a href="/admin"   data-i18n="nav.admin">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main class="explore-layout">
+
+  <!-- ── Filter sidebar ── -->
+  <aside class="explore-sidebar" role="search" aria-label="Filter reports">
+
+    <div class="explore-search-row">
+      <input type="search" id="exploreQ" class="field-input"
+             data-i18n-ph="explore.search.ph"
+             placeholder="Search by keyword, address…"
+             autocomplete="off">
+      <button id="exploreSearchBtn" class="btn btn-primary"
+              data-i18n="explore.search.btn">Search</button>
+    </div>
+
+    <div class="explore-filters">
+      <div class="select-wrap">
+        <select id="exploreStatus" class="field-input filter-select">
+          <option value=""                                   data-i18n="explore.filter.status">All statuses</option>
+          <option value="Submitted"                          data-i18n="status.Submitted">Submitted</option>
+          <option value="Under Review"                       data-i18n="status.Under Review">Under Review</option>
+          <option value="Assigned"                           data-i18n="status.Assigned">Assigned</option>
+          <option value="In Progress"                        data-i18n="status.In Progress">In Progress</option>
+          <option value="Resolved"                           data-i18n="status.Resolved">Resolved</option>
+          <option value="Resolved—Awaiting Verification"     data-i18n="status.Resolved—Awaiting Verification">Resolved — Awaiting Verification</option>
+          <option value="Closed"                             data-i18n="status.Closed">Closed</option>
+          <option value="Rejected"                           data-i18n="status.Rejected">Rejected</option>
+          <option value="Duplicate"                          data-i18n="status.Duplicate">Duplicate</option>
+        </select>
+      </div>
+      <div class="select-wrap">
+        <select id="exploreCategory" class="field-input filter-select">
+          <option value=""              data-i18n="explore.filter.cat">All categories</option>
+          <option value="Waterlogging"  data-i18n="cat.Waterlogging">💧 Waterlogging</option>
+          <option value="Road Damage"   data-i18n="cat.Road Damage">🛣 Road Damage</option>
+          <option value="Garbage"       data-i18n="cat.Garbage">🗑 Garbage</option>
+          <option value="Streetlight"   data-i18n="cat.Streetlight">💡 Streetlight</option>
+          <option value="Drainage"      data-i18n="cat.Drainage">🚰 Drainage</option>
+          <option value="Water Supply"  data-i18n="cat.Water Supply">🔧 Water Supply</option>
+        </select>
+      </div>
+      <div class="select-wrap">
+        <select id="explorePriority" class="field-input filter-select">
+          <option value=""         data-i18n="explore.filter.pri">All priorities</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+      </div>
+
+      <div class="explore-date-row">
+        <div class="field">
+          <label class="field-label" for="exploreDateFrom" data-i18n="explore.date.from">From date</label>
+          <input type="date" id="exploreDateFrom" class="field-input">
+        </div>
+        <div class="field">
+          <label class="field-label" for="exploreDateTo" data-i18n="explore.date.to">To date</label>
+          <input type="date" id="exploreDateTo" class="field-input">
+        </div>
+      </div>
+
+      <button id="exploreClear" class="btn btn-outline btn-sm" data-i18n="explore.clear">✕ Clear filters</button>
+    </div>
+
+  </aside>
+
+  <!-- ── Main panel ── -->
+  <div class="explore-main">
+
+    <!-- View toggle + result count -->
+    <div class="explore-toolbar">
+      <span id="exploreCount" class="explore-count"></span>
+      <div class="view-toggle" role="group" aria-label="View mode">
+        <button id="viewListBtn" class="btn btn-sm btn-primary view-btn view-btn-active"
+                data-i18n="explore.view.list">List</button>
+        <button id="viewMapBtn"  class="btn btn-sm btn-outline view-btn"
+                data-i18n="explore.view.map">Map</button>
+      </div>
+    </div>
+
+    <!-- List view -->
+    <div id="exploreListView">
+      <div id="exploreCards" class="explore-cards" role="list" aria-live="polite">
+        <p class="explore-loading" data-i18n="explore.loading">Loading reports…</p>
+      </div>
+      <div id="exploreLoadMore" class="explore-load-more" hidden>
+        <button id="loadMoreBtn" class="btn btn-outline" data-i18n="explore.load.more">Load more</button>
+      </div>
+    </div>
+
+    <!-- Map view (hidden by default) -->
+    <div id="exploreMapView" hidden>
+      <div id="exploreMap" class="explore-map" aria-label="Issues map"></div>
+    </div>
+
+  </div><!-- /.explore-main -->
+
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
+</body>
+</html>

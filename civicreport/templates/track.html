@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,6 @@
 </head>
 <body>
 
-<!-- ─── Header ─────────────────────────────────────────────────── -->
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="brand">
@@ -16,30 +15,31 @@
       <span class="brand-name">CivicReport</span>
     </a>
     <nav class="header-nav">
-      <a href="/">Home</a>
-      <a href="/report">Report</a>
-      <a href="/admin">Admin</a>
+      <a href="/explore" data-i18n="nav.explore">Explore</a>
+      <a href="/report"  data-i18n="nav.report">Report</a>
+      <a href="/admin"   data-i18n="nav.admin">Admin</a>
     </nav>
   </div>
 </header>
 
-<!-- ─── Main ────────────────────────────────────────────────────── -->
 <main class="page-container">
 
   <!-- ── Search card ── -->
   <div class="form-card" id="searchCard">
     <div class="form-card-header">
-      <h1 class="form-title">Track Your Report</h1>
-      <p class="form-subtitle">Enter your tracking ID to see live status updates.</p>
+      <h1 class="form-title"   data-i18n="track.title">Track Your Report</h1>
+      <p class="form-subtitle" data-i18n="track.subtitle">Enter your tracking ID to see live status updates.</p>
     </div>
     <div class="track-search-body">
       <div class="field">
-        <label for="trackInput" class="field-label">Tracking ID</label>
+        <label for="trackInput" class="field-label" data-i18n="track.id.label">Tracking ID</label>
         <div class="track-input-row">
           <input type="text" id="trackInput" class="field-input"
+                 data-i18n-ph="track.id.ph"
                  placeholder="e.g. CIV-1007" autocomplete="off"
                  autocapitalize="characters" spellcheck="false">
-          <button id="trackBtn" class="btn btn-primary">Search</button>
+          <button id="trackBtn" class="btn btn-primary"
+                  data-i18n="track.search">Search</button>
         </div>
       </div>
       <div id="searchError" class="alert alert-error" hidden></div>
@@ -55,7 +55,7 @@
     <!-- Detail card -->
     <div class="form-card detail-card">
 
-      <!-- Card header: title + refresh indicator -->
+      <!-- Card header: title + refresh -->
       <div class="detail-header">
         <div class="detail-title-group">
           <span id="detailTrackingId" class="detail-tracking-id"></span>
@@ -63,52 +63,79 @@
         </div>
         <div class="refresh-badge" id="refreshBadge" title="Auto-refreshes every 10 s">
           <span class="refresh-dot" id="refreshDot"></span>
-          <span id="refreshLabel">Live</span>
+          <span id="refreshLabel" data-i18n="track.live">Live</span>
         </div>
       </div>
 
       <!-- ── Progress stepper ── -->
       <section class="stepper-section">
-        <ol class="stepper" id="stepper" aria-label="Report progress">
-          <!-- Steps injected by JS -->
-        </ol>
+        <ol class="stepper" id="stepper" aria-label="Report progress"></ol>
       </section>
 
       <!-- ── Meta grid ── -->
       <section class="meta-section">
         <dl class="meta-grid">
-          <dt>Category</dt>   <dd id="metaCategory"></dd>
-          <dt>Priority</dt>   <dd><span id="metaPriority" class="priority-badge"></span></dd>
-          <dt>Summary</dt>    <dd id="metaSummary"></dd>
-          <dt>Assigned to</dt><dd id="metaAssigned"></dd>
-          <dt>Location</dt>   <dd id="metaAddress"></dd>
-          <dt>Submitted</dt>  <dd id="metaCreated"></dd>
-          <dt>Last updated</dt><dd id="metaUpdated"></dd>
+          <dt data-i18n="track.category">Category</dt>   <dd id="metaCategory"></dd>
+          <dt data-i18n="track.priority">Priority</dt>   <dd><span id="metaPriority" class="priority-badge"></span></dd>
+          <dt data-i18n="track.summary">Summary</dt>     <dd id="metaSummary"></dd>
+          <dt data-i18n="track.assigned">Assigned to</dt><dd id="metaAssigned"></dd>
+          <dt data-i18n="track.location">Location</dt>   <dd id="metaAddress"></dd>
+          <dt data-i18n="track.submitted">Submitted</dt> <dd id="metaCreated"></dd>
+          <dt data-i18n="track.updated">Last updated</dt><dd id="metaUpdated"></dd>
         </dl>
 
         <!-- Priority factors (collapsible) -->
         <details class="factors-details" id="factorsDetails" hidden>
-          <summary class="factors-summary">Priority factors</summary>
+          <summary class="factors-summary" data-i18n="track.factors">Priority factors</summary>
           <ul id="metaFactors" class="factors-list factors-compact"></ul>
         </details>
 
         <!-- Duplicate notice -->
         <div id="dupNotice" class="alert alert-warn" hidden></div>
+
+        <!-- Me Too upvote widget -->
+        <div id="metooWidget" hidden class="metoo-widget">
+          <div class="metoo-info" id="metooInfo"></div>
+          <button id="metooBtn" class="btn btn-metoo"
+                  data-i18n-title="track.metoo.btn"
+                  title="I have the same issue">
+            <span data-i18n="track.metoo.btn">👍 Me Too</span>
+            <span id="metooCount" class="metoo-count">0</span>
+          </button>
+          <span id="metooThanks" class="metoo-thanks" hidden
+                data-i18n="track.metoo.thanks">Thanks! Counted.</span>
+        </div>
+      </section>
+
+      <!-- ── Resident verification widget ── -->
+      <!-- Shown only when status is "Resolved—Awaiting Verification" -->
+      <section id="verifySection" class="verify-section" hidden>
+        <h3 class="section-heading" data-i18n="verify.heading">Was this issue fixed?</h3>
+        <p class="field-hint" data-i18n="verify.hint">Your feedback helps us close resolved issues accurately.</p>
+        <textarea id="verifyNote" class="field-input" rows="2"
+                  data-i18n-ph="verify.note.ph"
+                  placeholder="Optional: describe what you observed"
+                  style="margin:.75rem 0;"></textarea>
+        <div class="verify-actions">
+          <button id="verifyYesBtn" class="btn btn-primary btn-sm" data-i18n="verify.yes">✅ Yes, it's fixed</button>
+          <button id="verifyNoBtn"  class="btn btn-outline btn-sm" data-i18n="verify.no">❌ No, still broken</button>
+        </div>
+        <div id="verifyDone" class="alert alert-success" hidden
+             data-i18n="verify.done">Thank you for your feedback!</div>
       </section>
 
       <!-- ── Status timeline ── -->
       <section class="timeline-section">
-        <h3 class="section-heading">Status history</h3>
-        <ol id="timeline" class="timeline" aria-label="Status timeline">
-          <!-- Items injected by JS -->
-        </ol>
+        <h3 class="section-heading" data-i18n="track.history">Status history</h3>
+        <ol id="timeline" class="timeline" aria-label="Status timeline"></ol>
       </section>
 
     </div><!-- /detail-card -->
 
     <!-- Search another -->
     <div class="track-again-row">
-      <button id="searchAgainBtn" class="btn btn-outline btn-sm">🔍 Search another ID</button>
+      <button id="searchAgainBtn" class="btn btn-outline btn-sm"
+              data-i18n="track.search.again">🔍 Search another ID</button>
     </div>
 
   </div><!-- /reportDetail -->
@@ -117,15 +144,17 @@
   <div id="notFoundPanel" hidden class="form-card not-found-card">
     <div class="not-found-body">
       <span class="not-found-icon">🔍</span>
-      <p class="not-found-title">Report not found</p>
+      <p class="not-found-title" data-i18n="track.not.found">Report not found</p>
       <p class="not-found-sub" id="notFoundMsg"></p>
-      <button id="notFoundBackBtn" class="btn btn-outline btn-sm">Try another ID</button>
+      <button id="notFoundBackBtn" class="btn btn-outline btn-sm"
+              data-i18n="track.try.another">Try another ID</button>
     </div>
   </div>
 
-</main><!-- /page-container -->
+</main>
 
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 <script src="{{ url_for('static', filename='script.js') }}"></script>
-
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
 </body>
 </html>

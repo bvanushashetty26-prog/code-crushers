@@ -72,24 +72,42 @@ def init_db():
                             CHECK (priority_level IN ('Low','Medium','High','Critical')),
             priority_reason TEXT,                             -- JSON text of factors
             duplicate_of    INTEGER REFERENCES reports(id),  -- nullable
-            duplicate_count INTEGER DEFAULT 0,
+            duplicate_count INTEGER DEFAULT 0,               -- AI-detected duplicates
+            metoo_count     INTEGER DEFAULT 0,               -- citizen "Me Too" upvotes
             cluster_id      TEXT,
             status          TEXT    NOT NULL DEFAULT 'Submitted'
                             CHECK (status IN (
                                 'Submitted','Under Review','Assigned',
-                                'In Progress','Resolved'
+                                'In Progress','Resolved',
+                                'Resolved—Awaiting Verification','Closed',
+                                'Rejected','Duplicate'
                             )),
             assigned_to     TEXT,
+            submitted_by    TEXT,
+            is_demo         INTEGER DEFAULT 0,
             created_at      TEXT    NOT NULL,
             updated_at      TEXT    NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS status_history (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            report_id INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
-            status    TEXT    NOT NULL,
-            note      TEXT,
-            timestamp TEXT    NOT NULL
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id    INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+            status       TEXT    NOT NULL,
+            note         TEXT,
+            changed_by   TEXT,
+            evidence_note TEXT,
+            timestamp    TEXT    NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            username      TEXT    NOT NULL UNIQUE,
+            email         TEXT    NOT NULL UNIQUE,
+            password_hash TEXT    NOT NULL,
+            role          TEXT    NOT NULL DEFAULT 'resident'
+                          CHECK (role IN ('resident','reviewer','staff','admin')),
+            created_at    TEXT    NOT NULL,
+            is_active     INTEGER DEFAULT 1
         );
         """
     )
@@ -99,6 +117,40 @@ def init_db():
 # Initialise the database when the application context is first pushed.
 with app.app_context():
     init_db()
+    # Migration: add metoo_count column to existing databases that pre-date Feature 1.
+    with app.app_context():
+        _mig_db = get_db()
+        try:
+            _mig_db.execute("ALTER TABLE reports ADD COLUMN metoo_count INTEGER DEFAULT 0")
+            _mig_db.commit()
+        except Exception:
+            pass  # column already exists — safe to ignore
+    # Migration: add submitted_by and is_demo columns to reports (Sub-Task 1).
+    with app.app_context():
+        _mig_db = get_db()
+        try:
+            _mig_db.execute("ALTER TABLE reports ADD COLUMN submitted_by TEXT")
+            _mig_db.commit()
+        except Exception:
+            pass  # column already exists — safe to ignore
+        try:
+            _mig_db.execute("ALTER TABLE reports ADD COLUMN is_demo INTEGER DEFAULT 0")
+            _mig_db.commit()
+        except Exception:
+            pass  # column already exists — safe to ignore
+    # Migration: add changed_by and evidence_note columns to status_history (Sub-Task 1).
+    with app.app_context():
+        _mig_db = get_db()
+        try:
+            _mig_db.execute("ALTER TABLE status_history ADD COLUMN changed_by TEXT")
+            _mig_db.commit()
+        except Exception:
+            pass  # column already exists — safe to ignore
+        try:
+            _mig_db.execute("ALTER TABLE status_history ADD COLUMN evidence_note TEXT")
+            _mig_db.commit()
+        except Exception:
+            pass  # column already exists — safe to ignore
 
 # ---------------------------------------------------------------------------
 # Upload helper
@@ -205,7 +257,17 @@ def admin():
 # Helpers shared by API endpoints
 # ---------------------------------------------------------------------------
 
-_VALID_STATUSES = ("Submitted", "Under Review", "Assigned", "In Progress", "Resolved")
+_VALID_STATUSES = (
+    "Submitted",
+    "Under Review",
+    "Assigned",
+    "In Progress",
+    "Resolved",
+    "Resolved—Awaiting Verification",
+    "Closed",
+    "Rejected",
+    "Duplicate",
+)
 _VALID_LEVELS   = ("Low", "Medium", "High", "Critical")
 _VALID_CATS     = (
     "Waterlogging", "Road Damage", "Garbage",
@@ -496,6 +558,60 @@ def api_get_report(tracking_id: str):
 
 
 # ---------------------------------------------------------------------------
+# API: POST /api/reports/<tracking_id>/metoo  (Feature 1 – "Me Too" upvote)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/reports/<tracking_id>/metoo", methods=["POST"])
+def api_metoo(tracking_id: str):
+    """
+    Increment the 'Me Too' counter on a report (or its primary if it is a duplicate).
+
+    Citizens use this to indicate they are experiencing the same issue without
+    filing a full duplicate report.
+
+    Behaviour
+    ---------
+    - If the target report is itself a duplicate, the upvote is credited to its
+      primary (duplicate_of) so all votes accumulate on one canonical record.
+    - Returns the updated metoo_count and the canonical tracking_id.
+    - Rate-limiting (by IP) is intentionally left to the deployment proxy;
+      the demo keeps it simple.
+    """
+    db = get_db()
+
+    # Resolve the tracking_id to a row
+    row = db.execute(
+        "SELECT id, tracking_id, duplicate_of, metoo_count FROM reports WHERE tracking_id = ?",
+        (tracking_id,),
+    ).fetchone()
+    if not row:
+        return _api_error(f"Report '{tracking_id}' not found.", 404)
+
+    # If this report is a known duplicate, credit the primary instead
+    target_id = row["duplicate_of"] if row["duplicate_of"] else row["id"]
+    canonical_row = db.execute(
+        "SELECT id, tracking_id, metoo_count FROM reports WHERE id = ?",
+        (target_id,),
+    ).fetchone()
+    if not canonical_row:
+        # Fallback: primary was deleted, use self
+        canonical_row = row
+        target_id = row["id"]
+
+    db.execute(
+        "UPDATE reports SET metoo_count = metoo_count + 1, updated_at = ? WHERE id = ?",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"), target_id),
+    )
+    db.commit()
+
+    new_count = canonical_row["metoo_count"] + 1
+    return jsonify({
+        "canonical_tracking_id": canonical_row["tracking_id"],
+        "metoo_count": new_count,
+    })
+
+
+# ---------------------------------------------------------------------------
 # API: PUT /api/reports/<id>/status
 # ---------------------------------------------------------------------------
 
@@ -730,6 +846,398 @@ def api_brief():
     return jsonify({
         "report_briefs":  report_briefs,
         "hotspot_briefs": hotspot_briefs,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Page route: /explore
+# ---------------------------------------------------------------------------
+
+@app.route("/explore")
+def explore():
+    return render_template("explore.html")
+
+
+# ---------------------------------------------------------------------------
+# API: GET /api/reports/search  (public explore / search)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/reports/search", methods=["GET"])
+def api_search_reports():
+    """
+    Public search endpoint — returns a stripped-down list (no private fields).
+
+    Query params
+    ------------
+    q         — free-text search (title / description / address)
+    status    — filter by status
+    category  — filter by category
+    priority  — filter by priority level
+    date_from — ISO date string (YYYY-MM-DD), inclusive
+    date_to   — ISO date string (YYYY-MM-DD), inclusive
+    limit     — default 50, max 200
+    offset    — default 0
+    """
+    q         = (request.args.get("q") or "").strip()
+    status    = request.args.get("status")
+    category  = request.args.get("category")
+    priority  = request.args.get("priority")
+    date_from = request.args.get("date_from")
+    date_to   = request.args.get("date_to")
+    try:
+        limit  = min(int(request.args.get("limit",  50)),  200)
+        offset = max(int(request.args.get("offset",  0)),    0)
+    except ValueError:
+        return _api_error("'limit' and 'offset' must be integers.")
+
+    if status   and status   not in _VALID_STATUSES:
+        return _api_error(f"Invalid status '{status}'.")
+    if category and category not in _VALID_CATS:
+        return _api_error(f"Invalid category '{category}'.")
+    if priority and priority not in _VALID_LEVELS:
+        return _api_error(f"Invalid priority '{priority}'.")
+
+    clauses, params = [], []
+    if q:
+        clauses.append("(title LIKE ? OR description LIKE ? OR address LIKE ?)")
+        params += [f"%{q}%", f"%{q}%", f"%{q}%"]
+    if status:
+        clauses.append("status = ?");         params.append(status)
+    if category:
+        clauses.append("category = ?");       params.append(category)
+    if priority:
+        clauses.append("priority_level = ?"); params.append(priority)
+    if date_from:
+        clauses.append("created_at >= ?");    params.append(date_from)
+    if date_to:
+        clauses.append("created_at <= ?");    params.append(date_to + "T23:59:59")
+
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    count_params = list(params)
+    params += [limit, offset]
+
+    db = get_db()
+    rows = db.execute(
+        f"""SELECT id, tracking_id, title, summary, category,
+                   latitude, longitude, address,
+                   priority_score, priority_level, status,
+                   metoo_count, duplicate_count, is_demo,
+                   created_at, updated_at
+            FROM reports {where}
+            ORDER BY priority_score DESC, created_at DESC
+            LIMIT ? OFFSET ?""",
+        params,
+    ).fetchall()
+
+    total = db.execute(
+        f"SELECT COUNT(*) AS n FROM reports {where}",
+        count_params,
+    ).fetchone()["n"]
+
+    return jsonify({
+        "total":   total,
+        "limit":   limit,
+        "offset":  offset,
+        "reports": [_row_to_dict(r) for r in rows],
+    })
+
+
+# ---------------------------------------------------------------------------
+# API: POST /api/reports/<tracking_id>/verify  (resident confirms fix)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/reports/<tracking_id>/verify", methods=["POST"])
+def api_verify_report(tracking_id: str):
+    """
+    Resident confirms or disputes a resolved report.
+
+    JSON body: { "confirmed": true|false, "note": "..." }
+    """
+    db = get_db()
+    row = db.execute(
+        "SELECT id, status FROM reports WHERE tracking_id = ?", (tracking_id,)
+    ).fetchone()
+    if not row:
+        return _api_error(f"Report '{tracking_id}' not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    confirmed = data.get("confirmed")
+    if confirmed is None:
+        return _api_error("'confirmed' (boolean) is required.")
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    if confirmed:
+        new_status = "Closed"
+        note = (data.get("note") or "").strip() or "Resident confirmed the issue is resolved."
+    else:
+        new_status = "In Progress"
+        note = (data.get("note") or "").strip() or "Resident reported the fix did not work — reopened."
+
+    db.execute(
+        "UPDATE reports SET status = ?, updated_at = ? WHERE id = ?",
+        (new_status, now, row["id"]),
+    )
+    db.execute(
+        "INSERT INTO status_history (report_id, status, note, changed_by, timestamp) VALUES (?,?,?,?,?)",
+        (row["id"], new_status, note, "resident", now),
+    )
+    db.commit()
+
+    return jsonify({"tracking_id": tracking_id, "new_status": new_status, "note": note})
+
+
+# ---------------------------------------------------------------------------
+# API: POST /api/chat  (rule-based chatbot — no external AI key needed)
+# ---------------------------------------------------------------------------
+
+_CHAT_FAQ = {
+    "submit": (
+        "To submit a report, click **Report an Issue** in the navigation. "
+        "Describe the problem clearly (location, severity, how long it's been there), "
+        "choose a category (or let AI detect it), optionally add a photo and pin the location, "
+        "then tap **Submit Report**. You'll receive a tracking ID like CIV-1042."
+    ),
+    "track": (
+        "To track a report, go to the **Track** page and enter your tracking ID "
+        "(e.g. CIV-1042). You'll see the current status, full history, and who it is assigned to."
+    ),
+    "status.Submitted": (
+        "**Submitted** means your report has been received and is waiting to be reviewed by staff."
+    ),
+    "status.Under Review": (
+        "**Under Review** means a staff member is examining your report — checking its details, "
+        "category, priority, and whether it duplicates an existing issue."
+    ),
+    "status.Assigned": (
+        "**Assigned** means the report has been allocated to a specific team or officer who will address it."
+    ),
+    "status.In Progress": (
+        "**In Progress** means work to fix the problem has started."
+    ),
+    "status.Resolved": (
+        "**Resolved — Awaiting Verification** means the fix has been applied. "
+        "You can confirm on the Track page whether the issue is actually fixed."
+    ),
+    "status.Closed": (
+        "**Closed** means the issue has been resolved and a resident confirmed it. "
+        "No further action is needed."
+    ),
+    "status.Rejected": (
+        "**Rejected** means the report could not be processed — it may be out of scope, "
+        "unclear, or already covered by another report."
+    ),
+    "status.Duplicate": (
+        "**Duplicate** means a similar issue was already reported. "
+        "Your Me Too vote has been counted on the primary report."
+    ),
+    "photo": (
+        "Photos are optional but very helpful. Accepted formats: JPG, PNG, GIF, WebP. "
+        "Location metadata (GPS EXIF) is stripped before storage for your privacy."
+    ),
+    "location": (
+        "Location is optional. If you share it, only a general area is shown publicly — "
+        "your exact pin is never exposed. You can also type an address instead of pinning."
+    ),
+    "privacy": (
+        "CivicReport keeps your email and contact details private. "
+        "Location data is only used to help route your report to the right team "
+        "and to identify hotspot areas. Report text is stored in its original language."
+    ),
+    "categories": (
+        "Available categories: Waterlogging, Road Damage, Garbage, Streetlight, Drainage, Water Supply. "
+        "Leave the category on **Auto-detect** and the AI will classify it for you."
+    ),
+    "priority": (
+        "Priority is automatically scored (Low / Medium / High / Critical) based on safety risk, "
+        "category urgency, description severity, duplicate count, and how long the issue has been open."
+    ),
+    "contact": (
+        "To contact staff directly, you can add a note to your report or ask the admin team "
+        "for assistance. For emergencies, please call the city helpline."
+    ),
+    "languages": (
+        "CivicReport supports English, हिन्दी (Hindi), বাংলা (Bengali), "
+        "தமிழ் (Tamil), తెలుగు (Telugu), मराठी (Marathi), and ಕನ್ನಡ (Kannada). "
+        "Use the language selector in the top-right corner to switch."
+    ),
+}
+
+_CHAT_INTENTS = [
+    (["how to submit", "how do i report", "how to report", "submit a report",
+      "report an issue", "create a report", "file a report", "new report"], "submit"),
+    (["track", "tracking id", "check status", "find my report", "where is my report",
+      "status of my report"], "track"),
+    (["submitted", "what does submitted mean"], "status.Submitted"),
+    (["under review", "reviewing", "what does under review mean"], "status.Under Review"),
+    (["assigned", "what does assigned mean"], "status.Assigned"),
+    (["in progress", "being fixed", "what does in progress mean"], "status.In Progress"),
+    (["resolved", "awaiting verification", "what does resolved mean"], "status.Resolved"),
+    (["closed", "what does closed mean"], "status.Closed"),
+    (["rejected", "what does rejected mean"], "status.Rejected"),
+    (["duplicate", "what does duplicate mean"], "status.Duplicate"),
+    (["photo", "image", "picture", "upload"], "photo"),
+    (["location", "map", "gps", "pin", "address"], "location"),
+    (["privacy", "data", "personal information", "private"], "privacy"),
+    (["categories", "category", "types of issues", "what can i report"], "categories"),
+    (["priority", "score", "urgent", "critical", "high priority"], "priority"),
+    (["contact", "speak to someone", "call", "help", "staff"], "contact"),
+    (["language", "hindi", "bengali", "tamil", "telugu", "marathi", "kannada"], "languages"),
+]
+
+
+def _chat_intent(text: str) -> str | None:
+    lower = text.lower()
+    for phrases, intent in _CHAT_INTENTS:
+        for phrase in phrases:
+            if phrase in lower:
+                return intent
+    return None
+
+
+def _chat_lookup_report(tracking_id_raw: str, db) -> dict | None:
+    """Return public fields for a report by tracking ID."""
+    tid = tracking_id_raw.strip().upper()
+    row = db.execute(
+        """SELECT tracking_id, title, summary, category, status,
+                  priority_level, assigned_to, created_at, updated_at
+           FROM reports WHERE tracking_id = ?""", (tid,)
+    ).fetchone()
+    if not row:
+        return None
+    history = db.execute(
+        "SELECT status, note, timestamp FROM status_history WHERE report_id = "
+        "(SELECT id FROM reports WHERE tracking_id = ?) ORDER BY timestamp DESC LIMIT 3",
+        (tid,),
+    ).fetchall()
+    return {
+        "tracking_id": row["tracking_id"],
+        "title":       row["title"],
+        "summary":     row["summary"],
+        "category":    row["category"],
+        "status":      row["status"],
+        "priority":    row["priority_level"],
+        "assigned_to": row["assigned_to"],
+        "created_at":  row["created_at"],
+        "updated_at":  row["updated_at"],
+        "recent_history": [dict(h) for h in history],
+    }
+
+
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """
+    Rule-based chatbot. Responds to help questions, FAQ, and report lookups.
+
+    JSON body: { "message": "...", "session": [] }
+    Returns:   { "reply": "...", "report": null|{...}, "suggestions": [...] }
+    """
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return _api_error("'message' is required.")
+    if len(message) > 500:
+        return _api_error("Message too long (max 500 chars).")
+
+    db = get_db()
+
+    # Check if message looks like a tracking ID
+    import re
+    tid_match = re.search(r'\bCIV-\d+\b', message.upper())
+    if tid_match:
+        tid = tid_match.group(0)
+        report_data = _chat_lookup_report(tid, db)
+        if report_data:
+            hist = report_data["recent_history"]
+            hist_text = ""
+            if hist:
+                hist_text = "\n\nRecent updates:\n" + "\n".join(
+                    f"• {h['status']}: {h['note'] or '(no note)'} — {h['timestamp'][:10]}"
+                    for h in hist
+                )
+            reply = (
+                f"Here's what I found for **{tid}**:\n\n"
+                f"**{report_data['title']}**\n"
+                f"Category: {report_data['category']}\n"
+                f"Status: **{report_data['status']}**\n"
+                f"Priority: {report_data['priority']}\n"
+                f"Assigned to: {report_data['assigned_to'] or 'Not yet assigned'}\n"
+                f"Submitted: {report_data['created_at'][:10]}"
+                f"{hist_text}"
+            )
+            return jsonify({
+                "reply": reply,
+                "report": report_data,
+                "suggestions": ["How do I track my report?", "What does this status mean?", "Contact staff"],
+            })
+        else:
+            return jsonify({
+                "reply": f"I couldn't find a report with ID **{tid}**. Please check the ID and try again. Tracking IDs look like CIV-1042.",
+                "report": None,
+                "suggestions": ["How do I submit a report?", "How do I track a report?"],
+            })
+
+    # Check for draft-report intent
+    draft_keywords = ["help me report", "want to report", "draft a report", "help me submit",
+                      "i want to file", "i need to report"]
+    lower = message.lower()
+    if any(k in lower for k in draft_keywords):
+        return jsonify({
+            "reply": (
+                "I'll help you draft a report! Please tell me:\n\n"
+                "1. **What is the problem?** (e.g. broken streetlight, pothole, garbage overflow)\n"
+                "2. **Where is it?** (street name, landmark, area)\n"
+                "3. **How severe is it?** (minor inconvenience / dangerous / blocking road)\n"
+                "4. **How long has it been there?**\n\n"
+                "Once you give me those details, I'll show you a draft and you can confirm before submitting."
+            ),
+            "report": None,
+            "suggestions": ["There's a pothole on MG Road near Sector 7", "Broken streetlight at Gandhi Chowk", "Overflowing garbage bin near the park"],
+        })
+
+    # Match FAQ intent
+    intent = _chat_intent(message)
+    if intent and intent in _CHAT_FAQ:
+        reply = _CHAT_FAQ[intent]
+        suggestions = {
+            "submit":             ["How do I track my report?", "What categories are available?", "Is my location kept private?"],
+            "track":              ["What does 'Under Review' mean?", "How do I submit a report?"],
+            "status.Submitted":   ["What does Under Review mean?", "How do I track my report?"],
+            "status.Under Review":["What does Assigned mean?", "How long does review take?"],
+            "status.Assigned":    ["What does In Progress mean?"],
+            "status.In Progress": ["What does Resolved mean?"],
+            "status.Resolved":    ["How do I confirm a fix?", "Track my report"],
+            "status.Closed":      ["Submit a new report"],
+            "status.Rejected":    ["How do I submit a report?", "Contact staff"],
+            "status.Duplicate":   ["What is Me Too?", "Track my report"],
+            "photo":              ["Is location required?", "How do I submit a report?"],
+            "location":           ["Is my data private?", "How do I submit a report?"],
+            "privacy":            ["What data is collected?", "Contact staff"],
+            "categories":         ["How do I submit a report?", "What is priority?"],
+            "priority":           ["What does Critical priority mean?", "How do I submit?"],
+            "contact":            ["How do I track my report?", "How do I submit a report?"],
+            "languages":          ["How do I switch language?", "How do I submit a report?"],
+        }.get(intent, ["How do I submit a report?", "How do I track a report?"])
+        return jsonify({"reply": reply, "report": None, "suggestions": suggestions})
+
+    # Fallback
+    return jsonify({
+        "reply": (
+            "I'm not sure I understood that. Here are some things I can help with:\n\n"
+            "• How to **submit** a report\n"
+            "• How to **track** a report by ID\n"
+            "• What each **status** means\n"
+            "• **Privacy** and location information\n"
+            "• Available **categories** and **priority** scoring\n\n"
+            "You can also enter a tracking ID like **CIV-1042** to look up a specific report.\n\n"
+            "For urgent help, please contact staff directly."
+        ),
+        "report": None,
+        "suggestions": [
+            "How do I submit a report?",
+            "What does Under Review mean?",
+            "Look up CIV-1042",
+        ],
     })
 
 

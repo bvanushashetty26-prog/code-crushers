@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- lang and dir are set dynamically by i18n.js -->
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,9 +19,9 @@
       <span class="brand-name">CivicReport</span>
     </a>
     <nav class="header-nav">
-      <a href="/">Home</a>
-      <a href="/track">Track</a>
-      <a href="/admin">Admin</a>
+      <a href="/explore" data-i18n="nav.explore">Explore</a>
+      <a href="/track"   data-i18n="nav.track">Track</a>
+      <a href="/admin"   data-i18n="nav.admin">Admin</a>
     </nav>
   </div>
 </header>
@@ -31,8 +32,8 @@
 
     <!-- Title -->
     <div class="form-card-header">
-      <h1 class="form-title">Report a Civic Issue</h1>
-      <p class="form-subtitle">Describe the problem. We'll categorise and prioritise it automatically.</p>
+      <h1 class="form-title"   data-i18n="report.page.title">Report a Civic Issue</h1>
+      <p class="form-subtitle" data-i18n="report.page.subtitle">Describe the problem. We'll categorise and prioritise it automatically.</p>
     </div>
 
     <!-- ── Validation banner (hidden) ── -->
@@ -43,64 +44,79 @@
     <!-- ── Form ── -->
     <form id="reportForm" novalidate>
 
-      <!-- Description -->
+      <!-- Description — data-i18n-ph targets the placeholder, data-i18n targets the label -->
       <div class="field">
         <label for="description" class="field-label">
-          What's the issue? <span class="required">*</span>
+          <span data-i18n="report.desc.label">What's the issue?</span>
+          <span class="required" data-i18n="misc.required">*</span>
         </label>
         <textarea id="description" name="description" rows="4"
-          placeholder="e.g. There's a large pothole on MG Road near Sector 7 that has damaged several vehicles…"
+          data-i18n-ph="report.desc.ph"
+          placeholder="e.g. There's a large pothole on MG Road near Sector 7…"
           class="field-input" required></textarea>
-        <span class="field-hint">Be specific — location, severity, how long it's been there.</span>
+        <!-- Voice-input button — mic triggers Web Speech API in script.js -->
+        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;">
+          <button type="button" id="voiceBtn" class="btn btn-outline btn-sm"
+                  title="Voice input" data-i18n-title="report.desc.label"
+                  aria-label="Voice input">🎤</button>
+          <span id="voiceStatus" class="field-hint" style="display:none"></span>
+        </div>
+        <span class="field-hint" data-i18n="report.desc.hint">Be specific — location, severity, how long it's been there.</span>
       </div>
 
-      <!-- Category -->
+      <!-- Category — option text keys map to cat.* in i18n -->
       <div class="field">
-        <label for="category" class="field-label">Category</label>
+        <label for="category" class="field-label" data-i18n="report.cat.label">Category</label>
         <div class="select-wrap">
           <select id="category" name="category" class="field-input">
-            <option value="">🤖 Auto-detect</option>
-            <option value="Waterlogging">💧 Waterlogging</option>
-            <option value="Road Damage">🛣 Road Damage</option>
-            <option value="Garbage">🗑 Garbage</option>
-            <option value="Streetlight">💡 Streetlight</option>
-            <option value="Drainage">🚰 Drainage</option>
-            <option value="Water Supply">🔧 Water Supply</option>
+            <!-- data-i18n on <option> is translated by i18n.js applyToDOM -->
+            <option value=""              data-i18n="report.cat.auto">🤖 Auto-detect</option>
+            <option value="Waterlogging"  data-i18n="cat.Waterlogging">💧 Waterlogging</option>
+            <option value="Road Damage"   data-i18n="cat.Road Damage">🛣 Road Damage</option>
+            <option value="Garbage"       data-i18n="cat.Garbage">🗑 Garbage</option>
+            <option value="Streetlight"   data-i18n="cat.Streetlight">💡 Streetlight</option>
+            <option value="Drainage"      data-i18n="cat.Drainage">🚰 Drainage</option>
+            <option value="Water Supply"  data-i18n="cat.Water Supply">🔧 Water Supply</option>
           </select>
         </div>
-        <span class="field-hint">Leave on Auto-detect to let AI classify your report.</span>
+        <span class="field-hint" data-i18n="report.cat.hint">Leave on Auto-detect to let AI classify your report.</span>
       </div>
 
       <!-- Image upload -->
       <div class="field">
-        <label class="field-label">Photo <span class="optional">(optional)</span></label>
+        <label class="field-label">
+          <span data-i18n="report.photo.label">Photo</span>
+          <span class="optional" data-i18n="misc.optional">(optional)</span>
+        </label>
         <label for="imageInput" class="upload-zone" id="uploadZone">
           <div id="uploadPrompt" class="upload-prompt">
             <span class="upload-icon">📷</span>
-            <span>Tap to add a photo</span>
+            <span data-i18n="report.photo.tap">Tap to add a photo</span>
           </div>
           <img id="imagePreview" class="image-preview" hidden alt="Preview">
           <input type="file" id="imageInput" name="image"
                  accept="image/png,image/jpeg,image/gif,image/webp"
                  class="sr-only">
         </label>
-        <button type="button" id="removeImage" class="link-btn" hidden>Remove photo</button>
+        <button type="button" id="removeImage" class="link-btn" hidden
+                data-i18n="report.photo.remove">Remove photo</button>
       </div>
 
       <!-- Location section -->
       <div class="field">
-        <label class="field-label">Location</label>
+        <label class="field-label" data-i18n="report.loc.label">Location</label>
 
         <!-- Map -->
-        <div id="map" class="leaflet-map" aria-label="Click to drop a pin"></div>
+        <div id="map" class="leaflet-map"
+             data-i18n-aria="report.loc.label"
+             aria-label="Click to drop a pin"></div>
         <p class="field-hint map-hint">
-          <strong>Click on the map</strong> to drop a pin — or use the button below.
+          <strong data-i18n="report.loc.map.hint">Click on the map to drop a pin — or use the button below.</strong>
         </p>
 
         <!-- Use my location -->
-        <button type="button" id="geoBtn" class="btn btn-outline btn-sm">
-          📍 Use my location
-        </button>
+        <button type="button" id="geoBtn" class="btn btn-outline btn-sm"
+                data-i18n="report.loc.geo">📍 Use my location</button>
 
         <!-- Coordinate readout -->
         <div id="coordReadout" class="coord-readout" hidden>
@@ -108,17 +124,20 @@
             <span id="latDisplay"></span>,
             <span id="lngDisplay"></span>
           </span>
-          <button type="button" id="clearPin" class="link-btn">Clear pin</button>
+          <button type="button" id="clearPin" class="link-btn"
+                  data-i18n="report.loc.clear">Clear pin</button>
         </div>
 
-        <!-- Hidden fields -->
+        <!-- Hidden coordinate fields -->
         <input type="hidden" id="latitude"  name="latitude">
         <input type="hidden" id="longitude" name="longitude">
 
         <!-- Manual address -->
         <div class="field field-inline">
-          <label for="address" class="field-label">Address / Landmark</label>
+          <label for="address" class="field-label"
+                 data-i18n="report.loc.addr.label">Address / Landmark</label>
           <input type="text" id="address" name="address"
+            data-i18n-ph="report.loc.addr.ph"
             placeholder="e.g. MG Road, near Sector 7 Chowk"
             class="field-input">
         </div>
@@ -127,7 +146,7 @@
       <!-- Submit -->
       <div class="form-actions">
         <button type="submit" id="submitBtn" class="btn btn-primary btn-full">
-          <span id="submitLabel">Submit Report</span>
+          <span id="submitLabel" data-i18n="report.submit">Submit Report</span>
           <span id="submitSpinner" class="spinner" hidden></span>
         </button>
       </div>
@@ -141,47 +160,49 @@
       <div class="result-header">
         <span class="result-icon">✅</span>
         <div>
-          <p class="result-label">Report submitted</p>
-          <p class="result-subtext">Your tracking ID:</p>
+          <p class="result-label"   data-i18n="result.submitted">Report submitted</p>
+          <p class="result-subtext" data-i18n="result.your.id">Your tracking ID:</p>
         </div>
       </div>
 
       <!-- Tracking ID -->
       <div class="tracking-id-row">
         <span id="resultTrackingId" class="tracking-id"></span>
-        <button type="button" id="copyBtn" class="btn btn-outline btn-sm" title="Copy to clipboard">
-          📋 Copy
-        </button>
+        <button type="button" id="copyBtn" class="btn btn-outline btn-sm"
+                data-i18n="result.copy"
+                data-i18n-title="result.copy">📋 Copy</button>
       </div>
 
       <!-- Duplicate warning -->
       <div id="duplicateWarning" class="alert alert-warn" hidden>
-        <strong>Possible duplicate:</strong>
+        <strong data-i18n="result.dup.label">Possible duplicate:</strong>
         <span id="duplicateMsg"></span>
       </div>
 
       <!-- Details grid -->
       <dl class="result-grid">
-        <dt>Category</dt>
+        <dt data-i18n="result.category">Category</dt>
         <dd id="resultCategory"></dd>
 
-        <dt>Summary</dt>
+        <dt data-i18n="result.summary">Summary</dt>
         <dd id="resultSummary"></dd>
 
-        <dt>Priority</dt>
+        <dt data-i18n="result.priority">Priority</dt>
         <dd><span id="resultPriorityBadge" class="priority-badge"></span></dd>
       </dl>
 
       <!-- Priority factors -->
       <div class="factors-section">
-        <p class="factors-title">Priority factors</p>
+        <p class="factors-title" data-i18n="result.factors">Priority factors</p>
         <ul id="factorsList" class="factors-list"></ul>
       </div>
 
       <!-- Actions -->
       <div class="result-actions">
-        <a id="trackLink" href="#" class="btn btn-primary btn-sm">🔍 Track this report</a>
-        <button type="button" id="newReportBtn" class="btn btn-outline btn-sm">+ New report</button>
+        <a id="trackLink" href="#" class="btn btn-primary btn-sm"
+           data-i18n="result.track.btn">🔍 Track this report</a>
+        <button type="button" id="newReportBtn" class="btn btn-outline btn-sm"
+                data-i18n="result.new.btn">+ New report</button>
       </div>
 
     </div><!-- /resultCard -->
@@ -189,9 +210,9 @@
   </div><!-- /form-card -->
 </main>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 <script src="{{ url_for('static', filename='script.js') }}"></script>
-
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
 </body>
 </html>

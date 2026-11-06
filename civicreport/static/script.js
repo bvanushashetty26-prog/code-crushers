@@ -1,16 +1,13 @@
 /**
  * CivicReport – script.js
- * Handles the /report page:
- *   - Leaflet map pin-drop & "Use my location"
- *   - Image upload preview
- *   - fetch() submit to POST /api/reports
- *   - Result card rendering
+ * Page dispatch: runs the correct init function based on which page is loaded.
  */
 
-/* ─── Only run on the report page ─────────────────────────────────── */
-if (document.getElementById('reportForm')) {
-  initReportPage();
-}
+/* ─── Page dispatch ────────────────────────────────────────────────── */
+if (document.getElementById('reportForm'))    initReportPage();
+if (document.getElementById('trackInput'))    initTrackPage();
+if (document.getElementById('adminMap'))      initAdminPage();
+if (document.getElementById('exploreCards'))  initExplorePage();
 
 function initReportPage() {
 
@@ -318,10 +315,6 @@ function initReportPage() {
 /* =====================================================================
    Track page – initTrackPage()
    ===================================================================== */
-if (document.getElementById('trackInput')) {
-  initTrackPage();
-}
-
 function initTrackPage() {
 
   /* ── Element refs ──────────────────────────────────────────────── */
@@ -351,19 +344,32 @@ function initTrackPage() {
   const dupNotice       = document.getElementById('dupNotice');
   const timelineEl      = document.getElementById('timeline');
 
+  // Feature 1: Me Too widget elements
+  const metooWidget     = document.getElementById('metooWidget');
+  const metooInfo       = document.getElementById('metooInfo');
+  const metooBtn        = document.getElementById('metooBtn');
+  const metooCount      = document.getElementById('metooCount');
+  const metooThanks     = document.getElementById('metooThanks');
+
+  // Track which tracking_id Me Too was sent for (prevent double-tap)
+  let metooSent = false;
+
   const searchAgainBtn  = document.getElementById('searchAgainBtn');
   const notFoundPanel   = document.getElementById('notFoundPanel');
   const notFoundMsg     = document.getElementById('notFoundMsg');
   const notFoundBackBtn = document.getElementById('notFoundBackBtn');
 
-  /* ── Status pipeline (order matters) ──────────────────────────── */
+  /* ── Status pipeline (order matters for stepper) ──────────────── */
   const STEPS = [
     { key: 'Submitted',    icon: '📩', label: 'Submitted' },
     { key: 'Under Review', icon: '🔍', label: 'Under\nReview' },
     { key: 'Assigned',     icon: '👷', label: 'Assigned' },
     { key: 'In Progress',  icon: '🔧', label: 'In\nProgress' },
-    { key: 'Resolved',     icon: '✅', label: 'Resolved' },
+    { key: 'Resolved—Awaiting Verification', icon: '⏳', label: 'Awaiting\nVerify' },
+    { key: 'Closed',       icon: '✅', label: 'Closed' },
   ];
+  // Terminal states not in stepper (show as completed)
+  const TERMINAL = ['Rejected', 'Duplicate'];
   const STEP_ORDER = STEPS.map(s => s.key);
 
   /* ── Auto-refresh ──────────────────────────────────────────────── */
@@ -444,6 +450,43 @@ function initTrackPage() {
     }
   }
 
+  /* ── Verification widget ─────────────────────────────────────── */
+  const verifySection = document.getElementById('verifySection');
+  const verifyYesBtn  = document.getElementById('verifyYesBtn');
+  const verifyNoBtn   = document.getElementById('verifyNoBtn');
+  const verifyNote    = document.getElementById('verifyNote');
+  const verifyDone    = document.getElementById('verifyDone');
+
+  if (verifyYesBtn) {
+    verifyYesBtn.addEventListener('click', () => doVerify(true));
+    verifyNoBtn.addEventListener('click',  () => doVerify(false));
+  }
+
+  async function doVerify(confirmed) {
+    if (!currentId) return;
+    verifyYesBtn.disabled = true;
+    verifyNoBtn.disabled  = true;
+    try {
+      const res = await fetch(`/api/reports/${encodeURIComponent(currentId)}/verify`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ confirmed, note: verifyNote ? verifyNote.value.trim() : '' }),
+      });
+      if (res.ok) {
+        verifyDone.hidden = false;
+        verifySection.hidden = true;
+        // Refresh the report to show updated status
+        await fetchReport(currentId, false);
+      } else {
+        verifyYesBtn.disabled = false;
+        verifyNoBtn.disabled  = false;
+      }
+    } catch {
+      verifyYesBtn.disabled = false;
+      verifyNoBtn.disabled  = false;
+    }
+  }
+
   /* ── Render full report ────────────────────────────────────────── */
   function render(r) {
     // Show/hide panels
@@ -499,6 +542,38 @@ function initTrackPage() {
       dupNotice.hidden = false;
     } else {
       dupNotice.hidden = true;
+    }
+
+    /* ── Me Too widget (Feature 1) ── */
+    // Show for: (a) duplicates — citizen can upvote the primary issue
+    //           (b) primary reports that already have upvotes — shows community interest
+    const hasDup       = !!r.duplicate_of_tracking_id;
+    const mCount       = r.metoo_count || 0;
+    const showMetoo    = hasDup || mCount > 0;
+    metooSent = false;
+    metooThanks.hidden = true;
+    metooBtn.disabled  = false;
+
+    if (showMetoo) {
+      metooCount.textContent = mCount;
+      if (hasDup) {
+        metooInfo.innerHTML = `<strong>${mCount} ${mCount === 1 ? 'person' : 'people'}</strong>
+          also reported this issue (linked to <strong>${escHtml(r.duplicate_of_tracking_id)}</strong>).
+          Tap <em>Me Too</em> if you're affected too.`;
+      } else {
+        metooInfo.innerHTML = `<strong>${mCount} ${mCount === 1 ? 'person' : 'people'}</strong>
+          confirmed this issue. Tap <em>Me Too</em> if you're affected too.`;
+      }
+      metooWidget.hidden = false;
+    } else {
+      metooWidget.hidden = true;
+    }
+
+    /* ── Resident verification widget ── */
+    if (verifySection) {
+      verifySection.hidden = (r.status !== 'Resolved—Awaiting Verification');
+      verifyDone.hidden = true;
+      if (verifyYesBtn) { verifyYesBtn.disabled = false; verifyNoBtn.disabled = false; }
     }
 
     /* ── Timeline ── */
@@ -606,6 +681,31 @@ function initTrackPage() {
   searchAgainBtn.addEventListener('click', resetToSearch);
   notFoundBackBtn.addEventListener('click', resetToSearch);
 
+  /* ── Me Too button handler (Feature 1) ────────────────────────── */
+  metooBtn.addEventListener('click', async () => {
+    if (metooSent || !currentId) return;   // prevent double-click
+    metooSent = true;
+    metooBtn.disabled = true;
+
+    try {
+      const res  = await fetch(`/api/reports/${encodeURIComponent(currentId)}/metoo`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        // Update counter in-place without a full refresh
+        metooCount.textContent = data.metoo_count;
+        metooThanks.hidden = false;
+      } else {
+        // Non-fatal: just re-enable the button
+        metooSent = false;
+        metooBtn.disabled = false;
+      }
+    } catch {
+      // Network error: allow retry
+      metooSent = false;
+      metooBtn.disabled = false;
+    }
+  });
+
   /* ── Helpers ───────────────────────────────────────────────────── */
   function setLoading(on) {
     trackBtn.disabled   = on;
@@ -638,9 +738,6 @@ function initTrackPage() {
 /* =====================================================================
    Admin Dashboard – initAdminPage()
    ===================================================================== */
-if (document.getElementById('adminMap')) {
-  initAdminPage();
-}
 
 function initAdminPage() {
 
@@ -686,16 +783,7 @@ function initAdminPage() {
   const filterPriority = document.getElementById('filterPriority');
   const clearFilters   = document.getElementById('clearFilters');
 
-  STATUS_ORDER.forEach(s => {
-    const o = new Option(s, s); filterStatus.appendChild(o);
-  });
-  CATEGORIES.forEach(c => {
-    const o = new Option(c, c); filterCategory.appendChild(o);
-  });
-  PRIORITIES.forEach(p => {
-    const o = new Option(p, p); filterPriority.appendChild(o);
-  });
-
+  // Filter selects already have options in HTML; just bind listeners
   filterStatus.addEventListener('change',   applyFilters);
   filterCategory.addEventListener('change', applyFilters);
   filterPriority.addEventListener('change', applyFilters);
@@ -712,10 +800,18 @@ function initAdminPage() {
   const actionTitleEl  = document.getElementById('actionTitle');
   const actionStatus   = document.getElementById('actionStatus');
   const actionAssigned = document.getElementById('actionAssigned');
+  const actionDupOf    = document.getElementById('actionDupOf');
   const actionNote     = document.getElementById('actionNote');
   const submitAction   = document.getElementById('submitAction');
   const actionMsg      = document.getElementById('actionMsg');
   const closeAction    = document.getElementById('closeAction');
+  const dupLinkField   = document.getElementById('dupLinkField');
+
+  // Show/hide duplicate-of field depending on chosen status
+  actionStatus.addEventListener('change', () => {
+    if (dupLinkField) dupLinkField.style.display = actionStatus.value === 'Duplicate' ? '' : 'none';
+  });
+  if (dupLinkField) dupLinkField.style.display = 'none'; // hidden by default
 
   closeAction.addEventListener('click', () => {
     actionPanel.hidden = true;
@@ -808,7 +904,7 @@ function initAdminPage() {
       renderMarkers(allReports);
     } catch (e) {
       document.getElementById('tableBody').innerHTML =
-        `<tr><td colspan="8" class="tbl-loading">Failed to load reports.</td></tr>`;
+        `<tr><td colspan="9" class="tbl-loading">Failed to load reports.</td></tr>`;
     }
   }
 
@@ -828,7 +924,7 @@ function initAdminPage() {
   function renderTable(reports) {
     const tbody = document.getElementById('tableBody');
     if (!reports.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="tbl-loading">No reports match the current filters.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="tbl-loading">No reports match the current filters.</td></tr>`;
       return;
     }
 
@@ -859,6 +955,13 @@ function initAdminPage() {
         <td>${escHtml(r.status)}</td>
         <td>${escHtml(r.assigned_to || '—')}</td>
         <td style="white-space:nowrap">${(r.created_at || '').slice(0, 10)}</td>
+        <td style="text-align:center">
+          <!-- Me Too upvotes + AI duplicate count (Feature 1) -->
+          <span title="Me Too upvotes">${r.metoo_count || 0}</span>
+          ${(r.duplicate_count || 0) > 0
+            ? `<span class="dup-badge" title="AI-detected duplicates">+${r.duplicate_count} dup</span>`
+            : ''}
+        </td>
         <td>
           <button class="btn btn-outline btn-update" data-id="${r.id}">Update</button>
         </td>
@@ -868,7 +971,7 @@ function initAdminPage() {
       const trF = document.createElement('tr');
       trF.className = 'row-factors';
       trF.dataset.factorsFor = r.id;
-      trF.innerHTML = `<td colspan="8">${renderFactorsHtml(factors)}</td>`;
+      trF.innerHTML = `<td colspan="9">${renderFactorsHtml(factors)}</td>`;
 
       tbody.appendChild(tr);
       tbody.appendChild(trF);
@@ -988,7 +1091,9 @@ function initAdminPage() {
     actionTitleEl.textContent  = r.title;
     actionStatus.value         = r.status;
     actionAssigned.value       = r.assigned_to || '';
+    if (actionDupOf) actionDupOf.value = r.duplicate_of_tracking_id || '';
     actionNote.value           = '';
+    if (dupLinkField) dupLinkField.style.display = r.status === 'Duplicate' ? '' : 'none';
 
     hideActionMsg();
     actionPanel.hidden = false;
@@ -998,10 +1103,16 @@ function initAdminPage() {
   /* ── Status update ─────────────────────────────────────────────── */
   async function doStatusUpdate() {
     if (!selectedId) return;
+    const note = actionNote.value.trim();
+    if (!note) {
+      showActionMsg('A note is required for every status change.', 'error');
+      return;
+    }
     const body = {
       status:      actionStatus.value,
       assigned_to: actionAssigned.value.trim() || null,
-      note:        actionNote.value.trim()     || null,
+      note,
+      duplicate_of_tracking_id: (actionDupOf && actionDupOf.value.trim()) || null,
     };
     submitAction.disabled = true;
     submitAction.textContent = 'Saving…';
@@ -1053,3 +1164,197 @@ function initAdminPage() {
   }
 
 }  // end initAdminPage()
+
+/* =====================================================================
+   Explore Page – initExplorePage()
+   ===================================================================== */
+function initExplorePage() {
+
+  const searchQ    = document.getElementById('exploreQ');
+  const searchBtn  = document.getElementById('exploreSearchBtn');
+  const statusSel  = document.getElementById('exploreStatus');
+  const catSel     = document.getElementById('exploreCategory');
+  const priSel     = document.getElementById('explorePriority');
+  const dateFrom   = document.getElementById('exploreDateFrom');
+  const dateTo     = document.getElementById('exploreDateTo');
+  const clearBtn   = document.getElementById('exploreClear');
+  const countEl    = document.getElementById('exploreCount');
+  const cardsEl    = document.getElementById('exploreCards');
+  const loadMoreBtn= document.getElementById('loadMoreBtn');
+  const loadMoreWrap=document.getElementById('exploreLoadMore');
+  const listView   = document.getElementById('exploreListView');
+  const mapView    = document.getElementById('exploreMapView');
+  const viewListBtn= document.getElementById('viewListBtn');
+  const viewMapBtn = document.getElementById('viewMapBtn');
+
+  let offset       = 0;
+  const LIMIT      = 20;
+  let total        = 0;
+  let currentMap   = null;
+  let markerLayer  = null;
+
+  /* ── Search / filter events ── */
+  searchBtn.addEventListener('click',  () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  clearBtn.addEventListener('click',   clearAll);
+  statusSel.addEventListener('change', () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  catSel.addEventListener('change',    () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  priSel.addEventListener('change',    () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  dateFrom.addEventListener('change',  () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  dateTo.addEventListener('change',    () => { offset = 0; cardsEl.innerHTML = ''; load(); });
+  searchQ.addEventListener('keydown',  e => { if (e.key === 'Enter') { offset = 0; cardsEl.innerHTML = ''; load(); } });
+  if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => load(true));
+
+  /* ── View toggle ── */
+  viewListBtn.addEventListener('click', () => {
+    listView.hidden = false; mapView.hidden = true;
+    viewListBtn.className = 'btn btn-sm btn-primary view-btn';
+    viewMapBtn.className  = 'btn btn-sm btn-outline view-btn';
+  });
+  viewMapBtn.addEventListener('click', () => {
+    listView.hidden = true; mapView.hidden = false;
+    viewListBtn.className = 'btn btn-sm btn-outline view-btn';
+    viewMapBtn.className  = 'btn btn-sm btn-primary view-btn';
+    initExploreMap();
+  });
+
+  /* ── Initial load ── */
+  load();
+
+  /* ── Build API URL from filters ── */
+  function buildUrl(appendOffset) {
+    const params = new URLSearchParams();
+    if (searchQ.value.trim())   params.set('q',         searchQ.value.trim());
+    if (statusSel.value)        params.set('status',    statusSel.value);
+    if (catSel.value)           params.set('category',  catSel.value);
+    if (priSel.value)           params.set('priority',  priSel.value);
+    if (dateFrom.value)         params.set('date_from', dateFrom.value);
+    if (dateTo.value)           params.set('date_to',   dateTo.value);
+    params.set('limit',  LIMIT);
+    params.set('offset', appendOffset ? offset : 0);
+    return `/api/reports/search?${params}`;
+  }
+
+  /* ── Load and render ── */
+  async function load(append = false) {
+    if (!append) {
+      cardsEl.innerHTML = `<p class="explore-loading" data-i18n="explore.loading">Loading reports…</p>`;
+    }
+    try {
+      const res  = await fetch(buildUrl(append));
+      const data = await res.json();
+      total = data.total || 0;
+      const reports = data.reports || [];
+
+      if (!append) cardsEl.innerHTML = '';
+
+      if (!reports.length && !append) {
+        cardsEl.innerHTML = `<p class="explore-empty" data-i18n="explore.none">No reports match your filters.</p>`;
+        if (window.i18n) window.i18n.applyToDOM(cardsEl);
+      } else {
+        reports.forEach(r => cardsEl.appendChild(buildCard(r)));
+      }
+
+      offset += reports.length;
+      countEl.textContent = `${total} report${total !== 1 ? 's' : ''} found`;
+      if (loadMoreWrap) loadMoreWrap.hidden = (offset >= total);
+
+      // Re-translate any new data-i18n elements
+      if (window.i18n) window.i18n.applyToDOM(cardsEl);
+      if (window.i18n) window.i18n.applyToDOM(countEl.parentElement);
+
+    } catch (e) {
+      cardsEl.innerHTML = `<p class="explore-empty" style="color:var(--danger)">Failed to load reports. Please try again.</p>`;
+    }
+  }
+
+  /* ── Card builder ── */
+  function buildCard(r) {
+    const card = document.createElement('article');
+    card.className = 'explore-card';
+    card.setAttribute('role', 'listitem');
+
+    const statusCls = statusClass(r.status);
+    const priCls    = `badge-${r.priority_level}`;
+    const demoTag   = r.is_demo ? `<span class="demo-badge" data-i18n="explore.demo.label">Demo</span>` : '';
+
+    card.innerHTML = `
+      <div class="explore-card-top">
+        <span class="priority-badge ${priCls}">${escHtml(r.priority_level)}</span>
+        <span class="explore-status ${statusCls}">${escHtml(r.status)}</span>
+        ${demoTag}
+      </div>
+      <h3 class="explore-card-title">
+        <a href="/track/${encodeURIComponent(r.tracking_id)}">${escHtml(r.title || r.tracking_id)}</a>
+      </h3>
+      <p  class="explore-card-summary">${escHtml((r.summary || r.tracking_id))}</p>
+      <div class="explore-card-meta">
+        <span>📁 ${escHtml(r.category || '—')}</span>
+        ${r.address ? `<span>📍 ${escHtml(r.address)}</span>` : ''}
+        <span>🗓 ${(r.created_at || '').slice(0, 10)}</span>
+        ${(r.metoo_count || 0) > 0 ? `<span>👍 ${r.metoo_count}</span>` : ''}
+      </div>
+    `;
+    return card;
+  }
+
+  function statusClass(s) {
+    const map = {
+      'Submitted':   'status-chip-submitted',
+      'Under Review':'status-chip-review',
+      'Assigned':    'status-chip-assigned',
+      'In Progress': 'status-chip-progress',
+      'Resolved':    'status-chip-resolved',
+      'Resolved—Awaiting Verification': 'status-chip-awaiting',
+      'Closed':      'status-chip-closed',
+      'Rejected':    'status-chip-rejected',
+      'Duplicate':   'status-chip-dup',
+    };
+    return map[s] || 'status-chip-submitted';
+  }
+
+  /* ── Clear all filters ── */
+  function clearAll() {
+    searchQ.value  = '';
+    statusSel.value = '';
+    catSel.value   = '';
+    priSel.value   = '';
+    dateFrom.value = '';
+    dateTo.value   = '';
+    offset = 0;
+    cardsEl.innerHTML = '';
+    load();
+  }
+
+  /* ── Explore map (lazy init) ── */
+  function initExploreMap() {
+    if (currentMap) return;  // already initialised
+    currentMap  = L.map('exploreMap').setView([28.620, 77.210], 13);
+    markerLayer = L.layerGroup().addTo(currentMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(currentMap);
+
+    // Load all reports for the map (no pagination)
+    fetch('/api/reports/search?limit=200').then(r => r.json()).then(data => {
+      (data.reports || []).forEach(r => {
+        if (r.latitude == null || r.longitude == null) return;
+        const COLORS = { Critical:'#dc2626', High:'#f97316', Medium:'#f59e0b', Low:'#3b82f6' };
+        const color = COLORS[r.priority_level] || '#64748b';
+        L.circleMarker([r.latitude, r.longitude], {
+          radius: 7, fillColor: color, color: '#fff', weight: 1.5, fillOpacity: 0.85,
+        })
+        .bindPopup(`<strong><a href="/track/${r.tracking_id}">${escHtml(r.tracking_id)}</a></strong><br>
+                    ${escHtml((r.title || '').slice(0,60))}<br>
+                    <span style="color:${color};font-weight:700">${r.priority_level}</span> · ${escHtml(r.status)}`)
+        .addTo(markerLayer);
+      });
+    }).catch(() => {});
+  }
+
+  function escHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+}  // end initExplorePage()

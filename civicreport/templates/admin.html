@@ -1,18 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard – CivicReport</title>
+  <title>Staff Dashboard – CivicReport</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <!-- Leaflet -->
-  <link  rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <!-- Chart.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-<!-- ─── Header ─────────────────────────────────────────────────── -->
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="brand">
@@ -20,73 +17,89 @@
       <span class="brand-name">CivicReport</span>
     </a>
     <nav class="header-nav">
-      <a href="/">Home</a>
-      <a href="/report">Report</a>
-      <a href="/track">Track</a>
+      <a href="/explore" data-i18n="nav.explore">Explore</a>
+      <a href="/report"  data-i18n="nav.report">Report</a>
+      <a href="/track"   data-i18n="nav.track">Track</a>
     </nav>
   </div>
 </header>
 
-<!-- ─── Main ────────────────────────────────────────────────────── -->
 <main class="admin-layout">
 
   <!-- ── Stat cards row ── -->
   <section class="admin-section" id="statsSection">
-    <h2 class="admin-section-title">Overview</h2>
-    <div class="stat-cards" id="statCards">
-      <!-- injected by JS -->
-    </div>
+    <h2 class="admin-section-title" data-i18n="admin.overview">Overview</h2>
+    <div class="stat-cards" id="statCards"><!-- injected by JS --></div>
   </section>
 
   <!-- ── Map + Chart row ── -->
   <div class="admin-two-col">
 
-    <!-- Map -->
     <section class="admin-section map-section">
       <h2 class="admin-section-title">
-        Priority Map
+        <span data-i18n="admin.map">Priority Map</span>
         <span class="legend-row" id="mapLegend"></span>
       </h2>
       <div id="adminMap" class="admin-map"></div>
     </section>
 
-    <!-- Chart + Brief -->
     <div class="admin-side-col">
 
-      <!-- Category bar chart -->
       <section class="admin-section chart-section">
-        <h2 class="admin-section-title">Reports by Category</h2>
+        <h2 class="admin-section-title" data-i18n="admin.chart">Reports by Category</h2>
         <div class="chart-wrap">
           <canvas id="catChart" aria-label="Category bar chart"></canvas>
         </div>
       </section>
 
-      <!-- Action brief -->
       <section class="admin-section brief-section" id="briefSection">
         <h2 class="admin-section-title">
-          Action Brief
-          <span class="rule-label">Rule-based summary</span>
+          <span data-i18n="admin.brief">Action Brief</span>
+          <span class="rule-label" data-i18n="admin.brief.rule">Rule-based summary</span>
         </h2>
         <div id="briefContent" class="brief-content">
           <p class="brief-loading">Loading…</p>
         </div>
       </section>
 
-    </div><!-- /admin-side-col -->
+    </div>
+  </div>
 
-  </div><!-- /admin-two-col -->
-
-  <!-- ── Reports table section ── -->
+  <!-- ── Reports table ── -->
   <section class="admin-section table-section">
 
-    <!-- Filters toolbar -->
     <div class="table-toolbar">
-      <h2 class="admin-section-title">All Reports</h2>
+      <h2 class="admin-section-title" data-i18n="admin.all.reports">All Reports</h2>
       <div class="filter-row">
-        <select id="filterStatus"   class="field-input filter-select"><option value="">All statuses</option></select>
-        <select id="filterCategory" class="field-input filter-select"><option value="">All categories</option></select>
-        <select id="filterPriority" class="field-input filter-select"><option value="">All priorities</option></select>
-        <button id="clearFilters" class="btn btn-outline btn-sm">✕ Clear</button>
+        <select id="filterStatus"   class="field-input filter-select">
+          <option value=""                                data-i18n="admin.filter.status">All statuses</option>
+          <option value="Submitted"                       data-i18n="status.Submitted">Submitted</option>
+          <option value="Under Review"                    data-i18n="status.Under Review">Under Review</option>
+          <option value="Assigned"                        data-i18n="status.Assigned">Assigned</option>
+          <option value="In Progress"                     data-i18n="status.In Progress">In Progress</option>
+          <option value="Resolved"                        data-i18n="status.Resolved">Resolved</option>
+          <option value="Resolved—Awaiting Verification"  data-i18n="status.Resolved—Awaiting Verification">Resolved — Awaiting Verification</option>
+          <option value="Closed"                          data-i18n="status.Closed">Closed</option>
+          <option value="Rejected"                        data-i18n="status.Rejected">Rejected</option>
+          <option value="Duplicate"                       data-i18n="status.Duplicate">Duplicate</option>
+        </select>
+        <select id="filterCategory" class="field-input filter-select">
+          <option value="" data-i18n="admin.filter.cat">All categories</option>
+          <option value="Waterlogging"  data-i18n="cat.Waterlogging">Waterlogging</option>
+          <option value="Road Damage"   data-i18n="cat.Road Damage">Road Damage</option>
+          <option value="Garbage"       data-i18n="cat.Garbage">Garbage</option>
+          <option value="Streetlight"   data-i18n="cat.Streetlight">Streetlight</option>
+          <option value="Drainage"      data-i18n="cat.Drainage">Drainage</option>
+          <option value="Water Supply"  data-i18n="cat.Water Supply">Water Supply</option>
+        </select>
+        <select id="filterPriority" class="field-input filter-select">
+          <option value="" data-i18n="admin.filter.pri">All priorities</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <button id="clearFilters" class="btn btn-outline btn-sm" data-i18n="admin.clear">✕ Clear</button>
       </div>
     </div>
 
@@ -94,29 +107,30 @@
       <table class="admin-table" id="reportsTable">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Title</th>
-            <th>Category</th>
-            <th>Priority</th>
-            <th>Status</th>
-            <th>Assigned</th>
-            <th>Date</th>
-            <th>Actions</th>
+            <th data-i18n="admin.col.id">ID</th>
+            <th data-i18n="admin.col.title">Title</th>
+            <th data-i18n="admin.col.cat">Category</th>
+            <th data-i18n="admin.col.pri">Priority</th>
+            <th data-i18n="admin.col.status">Status</th>
+            <th data-i18n="admin.col.assigned">Assigned</th>
+            <th data-i18n="admin.col.date">Date</th>
+            <th data-i18n="admin.col.votes" title="Me Too upvotes + AI-detected duplicates">👍 Votes</th>
+            <th data-i18n="admin.col.actions">Actions</th>
           </tr>
         </thead>
         <tbody id="tableBody">
-          <tr><td colspan="8" class="tbl-loading">Loading reports…</td></tr>
+          <tr><td colspan="9" class="tbl-loading" data-i18n="admin.loading">Loading reports…</td></tr>
         </tbody>
       </table>
     </div>
 
   </section>
 
-  <!-- ── Action panel ── -->
+  <!-- ── Update / action panel ── -->
   <section class="admin-section action-section" id="actionPanel" hidden>
     <h2 class="admin-section-title">
-      Update Report
-      <button id="closeAction" class="link-btn action-close">✕ Close</button>
+      <span data-i18n="admin.update.title">Update Report</span>
+      <button id="closeAction" class="link-btn action-close" data-i18n="admin.close">✕ Close</button>
     </h2>
 
     <div class="action-grid">
@@ -125,43 +139,62 @@
         <p class="action-title-text"  id="actionTitle"></p>
       </div>
 
+      <!-- Status -->
       <div class="field">
-        <label class="field-label" for="actionStatus">New Status</label>
+        <label class="field-label" for="actionStatus" data-i18n="admin.status.label">New Status</label>
         <div class="select-wrap">
           <select id="actionStatus" class="field-input">
-            <option value="Submitted">Submitted</option>
-            <option value="Under Review">Under Review</option>
-            <option value="Assigned">Assigned</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
+            <option value="Submitted"                      data-i18n="status.Submitted">Submitted</option>
+            <option value="Under Review"                   data-i18n="status.Under Review">Under Review</option>
+            <option value="Assigned"                       data-i18n="status.Assigned">Assigned</option>
+            <option value="In Progress"                    data-i18n="status.In Progress">In Progress</option>
+            <option value="Resolved"                       data-i18n="status.Resolved">Resolved</option>
+            <option value="Resolved—Awaiting Verification" data-i18n="status.Resolved—Awaiting Verification">Resolved — Awaiting Verification</option>
+            <option value="Closed"                         data-i18n="status.Closed">Closed</option>
+            <option value="Rejected"                       data-i18n="status.Rejected">Rejected</option>
+            <option value="Duplicate"                      data-i18n="status.Duplicate">Duplicate</option>
           </select>
         </div>
       </div>
 
+      <!-- Assign to -->
       <div class="field">
-        <label class="field-label" for="actionAssigned">Assign To</label>
+        <label class="field-label" for="actionAssigned" data-i18n="admin.assign.label">Assign To</label>
         <input type="text" id="actionAssigned" class="field-input"
+               data-i18n-ph="admin.assign.ph"
                placeholder="Officer name (optional)">
       </div>
 
+      <!-- Link duplicate -->
+      <div class="field" id="dupLinkField">
+        <label class="field-label" for="actionDupOf" data-i18n="admin.dup.of.label">Duplicate of (tracking ID)</label>
+        <input type="text" id="actionDupOf" class="field-input"
+               data-i18n-ph="admin.dup.of.ph"
+               placeholder="e.g. CIV-1010"
+               autocapitalize="characters" spellcheck="false">
+        <span class="field-hint">Fill this when setting status to Duplicate.</span>
+      </div>
+
+      <!-- Note -->
       <div class="field action-note-field">
-        <label class="field-label" for="actionNote">Note</label>
+        <label class="field-label" for="actionNote" data-i18n="admin.note.label">Note</label>
         <textarea id="actionNote" class="field-input" rows="2"
-                  placeholder="Optional note for the status history"></textarea>
+                  data-i18n-ph="admin.note.ph"
+                  placeholder="Required: describe the update (shown in status history)"></textarea>
       </div>
     </div>
 
     <div class="action-footer">
-      <button id="submitAction" class="btn btn-primary btn-sm">💾 Save Changes</button>
+      <button id="submitAction" class="btn btn-primary btn-sm" data-i18n="admin.save">💾 Save Changes</button>
       <span id="actionMsg" class="action-msg" hidden></span>
     </div>
   </section>
 
-</main><!-- /admin-layout -->
+</main>
 
-<!-- Leaflet JS (loaded after DOM) -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 <script src="{{ url_for('static', filename='script.js') }}"></script>
-
+<script src="{{ url_for('static', filename='chatbot.js') }}"></script>
 </body>
 </html>
